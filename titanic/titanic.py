@@ -23,22 +23,41 @@ def get_dataset(file_path, **kwargs):
         **kwargs)
     return dataset
 
+raw_train_data = get_dataset(train_file_path)
+raw_test_data = get_dataset(test_file_path)
+
 def show_batch(dataset):
   for batch, label in dataset.take(1):
     for key, value in batch.items():
       print("{:20s}: {}".format(key,value.numpy()))
 
+# show_batch(raw_train_data)
+
 # Center/normalize numeric data
 def normalize_numeric_data(data, mean, std):
     return (data-mean)/std
 
-# you can select specific columns if need be
-SELECT_COLUMNS = ['survived', 'age', 'n_siblings_spouses', 'parch', 'fare']
-# If your data is already in an appropriate numeric format, you can pack the data into a vector before passing it off to the model
-DEFAULTS = [0, 0.0, 0.0, 0.0, 0.0]
+class PackNumericFeatures(object):
+  def __init__(self, names):
+    self.names = names
 
-raw_train_data = get_dataset(train_file_path, select_columns=SELECT_COLUMNS, column_defaults = DEFAULTS)
+  def __call__(self, features, labels):
+    numeric_features = [features.pop(name) for name in self.names]
+    numeric_features = [tf.cast(feat, tf.float32) for feat in numeric_features]
+    numeric_features = tf.stack(numeric_features, axis=-1)
+    features['numeric'] = numeric_features
+
+    return features, labels
+
+# you can select specific columns if need be
+SELECT_COLUMNS = ['survived', 'age', 'n_siblings_spouses', 'class', 'deck', 'alone']
+# If your data is already in an appropriate numeric format, you can pack the data into a vector before passing it off to the model
+# DEFAULTS = [0, 0.0, 0.0, -1, 'unknown', -1]
+
+raw_train_data = get_dataset(train_file_path, select_columns=SELECT_COLUMNS)
 raw_test_data = get_dataset(test_file_path)
+
+show_batch(raw_train_data)
 
 # if you don't have mixed datatypes, you can pack like this
 # def pack(features, label):
@@ -50,15 +69,15 @@ raw_test_data = get_dataset(test_file_path)
 #     print(labels.numpy())
 
 # create a list of names for columns containing numeric values to be packed
-NUMERIC_FEATURES = ['age','n_siblings_spouses','parch', 'fare']
+NUMERIC_FEATURES = ['age','n_siblings_spouses']
 packed_train_data = raw_train_data.map(PackNumericFeatures(NUMERIC_FEATURES))
 packed_test_data = raw_test_data.map(PackNumericFeatures(NUMERIC_FEATURES))
 
+# below shows a random batch of data from the packed dataset
+show_batch(packed_train_data)
+
 # create a batch of packed data
 example_batch, labels_batch = next(iter(packed_train_data))
-
-# below shows a random batch of data from the packed dataset
-# show_batch(packed_train_data)
 
 # get a description of the data from pandas to retrieve the mean and standard deviation
 # The mean based normalization used here requires knowing the means of each column ahead of time
@@ -76,10 +95,10 @@ numeric_layer(example_batch).numpy()
 
 # define the possible values for each column category
 CATEGORIES = {
-    'sex': ['male', 'female'],
+    # 'sex': ['male', 'female'],
     'class' : ['First', 'Second', 'Third'],
     'deck' : ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'],
-    'embark_town' : ['Cherbourg', 'Southhampton', 'Queenstown'],
+    # 'embark_town' : ['Cherbourg', 'Southhampton', 'Queenstown'],
     'alone' : ['y', 'n']
 }
 
@@ -93,7 +112,9 @@ categorical_layer = tf.keras.layers.DenseFeatures(categorical_columns)
 preprocessing_layer = tf.keras.layers.DenseFeatures(categorical_columns+numeric_columns)
 
 # below prints the first row of categorical data from the random example batch of packed training data
-# print(categorical_layer(example_batch).numpy()[0])
+print(categorical_columns)
+print(categorical_layer(example_batch).numpy()[0])
+print(preprocessing_layer(example_batch).numpy()[0])
 
 model = tf.keras.Sequential([
     preprocessing_layer,
@@ -111,16 +132,17 @@ model.compile(
 train_data = packed_train_data.shuffle(500)
 test_data = packed_test_data
 
-model.fit(train_data, epochs=20)
+model.fit(train_data, epochs=10000)
 
-class PackNumericFeatures(object):
-  def __init__(self, names):
-    self.names = names
+test_loss, test_accuracy = model.evaluate(test_data)
+print('\n\nTest Loss {}, Test Accuracy {}'.format(test_loss, test_accuracy))
+print()
 
-  def __call__(self, features, labels):
-    numeric_features = [features.pop(name) for name in self.names]
-    numeric_features = [tf.cast(feat, tf.float32) for feat in numeric_features]
-    numeric_features = tf.stack(numeric_features, axis=-1)
-    features['numeric'] = numeric_features
+predictions = model.predict(test_data)
 
-    return features, labels
+# Show some results
+for prediction, survived in zip(predictions[:10], list(test_data)[0][1][:10]):
+  prediction = tf.sigmoid(prediction).numpy()
+  print("Predicted survival: {:.2%}".format(prediction[0]),
+        " | Actual outcome: ",
+        ("SURVIVED" if bool(survived) else "DIED"))
