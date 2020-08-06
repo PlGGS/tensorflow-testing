@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-train_file_path = tf.keras.utils.get_file("train.csv", "https://storage.googleapis.com/tf-datasets/titanic/train.csv")
-test_file_path = tf.keras.utils.get_file("eval.csv", "https://storage.googleapis.com/tf-datasets/titanic/eval.csv")
+train_file_path = tf.keras.utils.get_file("train.csv", "titanic/train.csv")
+test_file_path = tf.keras.utils.get_file("eval.csv", "titanic/eval.csv")
 
 LABEL_COLUMN = 'survived'
 LABELS = [0, 1]
@@ -132,7 +132,9 @@ model.compile(
 train_data = packed_train_data.shuffle(500)
 test_data = packed_test_data
 
-model.fit(train_data, epochs=10000)
+tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
+
+model.fit(train_data, epochs=10)
 
 test_loss, test_accuracy = model.evaluate(test_data)
 print('\n\nTest Loss {}, Test Accuracy {}'.format(test_loss, test_accuracy))
