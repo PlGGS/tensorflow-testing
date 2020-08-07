@@ -7,7 +7,6 @@ train_file_path = tf.keras.utils.get_file("train.csv", "titanic/train.csv")
 test_file_path = tf.keras.utils.get_file("eval.csv", "titanic/eval.csv")
 
 LABEL_COLUMN = 'survived'
-LABELS = [0, 1]
 
 # Make numpy values easier to read.
 np.set_printoptions(precision=3, suppress=True)
@@ -96,6 +95,7 @@ numeric_layer(example_batch).numpy()
 # define the possible values for each column category
 CATEGORIES = {
     # 'sex': ['male', 'female'],
+    # 'survived' : [0, 1],
     'class' : ['First', 'Second', 'Third'],
     'deck' : ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'],
     # 'embark_town' : ['Cherbourg', 'Southhampton', 'Queenstown'],
