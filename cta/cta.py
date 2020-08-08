@@ -2,12 +2,25 @@ import functools
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow.keras.models import Sequential, save_model, load_model
+from tensorflow.keras.optimizers import Adam
+
+# from tensorflow.keras.models import Sequential
+# from tensorflow.keras.layers import BatchNormalization
+# from tensorflow.keras.layers import Conv2D
+# from tensorflow.keras.layers import MaxPooling2D
+# from tensorflow.keras.layers import Activation
+# from tensorflow.keras.layers import Dropout
+# from tensorflow.keras.layers import Dense
+# from tensorflow.keras.layers import Flatten
+# from tensorflow.keras.layers import Input
+# from tensorflow.keras.models import Model
 
 # if you want to grab file from internet
 # train_file_path = tf.keras.utils.get_file("traincta.csv", "url")
 
-train_file_path = "cta/train_cta.csv"
-test_file_path = "cta/test_cta.csv"
+train_file_path = "cta/tiny_train_cta.csv"
+test_file_path = "cta/tiny_test_cta.csv"
 
 LABEL_COLUMN = 'rides'
 
@@ -53,7 +66,7 @@ class PackNumericFeatures(object):
     return features, labels
 
 # you can select specific columns if need be
-SELECT_COLUMNS = ['stationname', 'date', 'daytype', 'rides']
+SELECT_COLUMNS = ['stationname', 'month', 'day', 'year', 'daytype', 'rides']
 
 raw_train_data = get_dataset(train_file_path, select_columns=SELECT_COLUMNS)
 raw_test_data = get_dataset(test_file_path)
@@ -94,8 +107,10 @@ else:
 # define the possible values for each column category
 CATEGORIES = {
     'stationname' : df['stationname'].drop_duplicates().tolist(),
-    'date' : df['date'].drop_duplicates().tolist(),
-    'daytype' : df['date'].drop_duplicates().tolist()
+    'month' : df['month'].drop_duplicates().tolist(),
+    'day' : df['day'].drop_duplicates().tolist(),
+    'year' : df['year'].drop_duplicates().tolist(),
+    'daytype' : df['daytype'].drop_duplicates().tolist()
 }
 
 categorical_columns = []
@@ -105,12 +120,18 @@ for feature, vocab in CATEGORIES.items():
 
 categorical_layer = tf.keras.layers.DenseFeatures(categorical_columns)
 
-preprocessing_layer = tf.keras.layers.DenseFeatures(categorical_columns+numeric_columns)
+if nf.empty:
+  preprocessing_layer = categorical_layer
+else:
+  preprocessing_layer = tf.keras.layers.DenseFeatures(categorical_columns+numeric_columns)
+
+train_data = packed_train_data.shuffle(500)
+test_data = packed_test_data
 
 # below prints the first row of categorical data from the random example batch of packed training data
-print(categorical_columns)
-print(categorical_layer(example_batch).numpy()[0])
-print(preprocessing_layer(example_batch).numpy()[0])
+# print(categorical_columns)
+# print(categorical_layer(example_batch).numpy()[0])
+# print(preprocessing_layer(example_batch).numpy()[0])
 
 model = tf.keras.Sequential([
     preprocessing_layer,
@@ -119,18 +140,25 @@ model = tf.keras.Sequential([
     tf.keras.layers.Dense(1),
 ])
 
-model.compile(
-    loss=tf.keras.losses.MeanAbsoluteError(),
-    optimizer='adam',
-    metrics=['accuracy']
-)
+# opt = Adam(lr=1e-3, decay=1e-3 / 200)
+opt = tf.keras.optimizers.RMSprop(0.001)
 
-train_data = packed_train_data.shuffle(500)
-test_data = packed_test_data
+# mean absolute percentage error indicates that we seek to minimize the mean percentage difference between the predicted price and the actual price
+model.compile(
+    # loss=tf.keras.losses.MeanAbsolutePercentageError(),
+    loss='mse',
+    optimizer=opt,
+    metrics=['mae', 'mse']
+)
 
 tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
 
-model.fit(train_data, epochs=10)
+# model.summary()
+show_batch(train_data)
+# print(model.predict(example_batch))
+
+model.fit(train_data, epochs=20)
+save_model(model, './model_v1')
 
 test_loss, test_accuracy = model.evaluate(test_data)
 print('\n\nTest Loss {}, Test Accuracy {}'.format(test_loss, test_accuracy))
@@ -141,5 +169,5 @@ predictions = model.predict(test_data)
 # Show some results
 for prediction, rides in zip(predictions[:10], list(test_data)[0][1][:10]):
   prediction = tf.sigmoid(prediction).numpy()
-  print("Predicted rides: {:}".format(prediction[0]),
+  print("Predicted rides: {:.2}".format(prediction[0]),
         " | Actual outcome: ", rides)
