@@ -6,11 +6,22 @@ from tensorflow import keras
 from tensorflow.keras.models import Sequential, save_model, load_model
 from tensorflow.keras.optimizers import Adam
 
-# if you want to grab file from internet
-# train_file_path = keras.utils.get_file("traincta.csv", "url")
+# from tensorflow.keras.models import Sequential
+# from tensorflow.keras.layers import BatchNormalization
+# from tensorflow.keras.layers import Conv2D
+# from tensorflow.keras.layers import MaxPooling2D
+# from tensorflow.keras.layers import Activation
+# from tensorflow.keras.layers import Dropout
+# from tensorflow.keras.layers import Dense
+# from tensorflow.keras.layers import Flatten
+# from tensorflow.keras.layers import Input
+# from tensorflow.keras.models import Model
 
-train_file_path = "cta/train_cta.csv"
-test_file_path = "cta/test_cta.csv"
+# if you want to grab file from internet
+# train_file_path = tf.keras.utils.get_file("traincta.csv", "url")
+
+train_file_path = "cta/tiny_train_cta.csv"
+test_file_path = "cta/tiny_test_cta.csv"
 
 LABEL_COLUMN = 'rides'
 
@@ -47,7 +58,6 @@ class PackNumericFeatures(object):
     self.names = names
 
   def __call__(self, features, labels):
-    print(features)
     numeric_features = [features.pop(name) for name in self.names]
     numeric_features = [tf.cast(feat, tf.float32) for feat in numeric_features]
     if numeric_features != []:
@@ -57,7 +67,7 @@ class PackNumericFeatures(object):
     return features, labels
 
 # you can select specific columns if need be
-SELECT_COLUMNS = ['rides', 'stationname', 'month', 'day', 'year', 'daytype']
+SELECT_COLUMNS = ['stationname', 'month', 'day', 'year', 'daytype', 'rides']
 
 raw_train_data = get_dataset(train_file_path, select_columns=SELECT_COLUMNS)
 raw_test_data = get_dataset(test_file_path)
@@ -65,7 +75,7 @@ raw_test_data = get_dataset(test_file_path)
 show_batch(raw_train_data)
 
 # create a list of names for columns containing numeric values to be packed
-NUMERIC_FEATURES = ['month', 'day', 'year']
+NUMERIC_FEATURES = []
 packed_train_data = raw_train_data.map(PackNumericFeatures(NUMERIC_FEATURES))
 packed_test_data = raw_test_data.map(PackNumericFeatures(NUMERIC_FEATURES))
 
@@ -90,7 +100,7 @@ if not nf.empty:
   numeric_column = tf.feature_column.numeric_column('numeric', normalizer_fn=normalizer, shape=[len(NUMERIC_FEATURES)])
   numeric_columns = [numeric_column]
 
-  numeric_layer = keras.layers.DenseFeatures(numeric_columns)
+  numeric_layer = tf.keras.layers.DenseFeatures(numeric_columns)
   numeric_layer(example_batch).numpy()
 else:
   numeric_columns = []
@@ -98,6 +108,9 @@ else:
 # define the possible values for each column category
 CATEGORIES = {
     'stationname' : df['stationname'].drop_duplicates().tolist(),
+    'month' : df['month'].drop_duplicates().tolist(),
+    'day' : df['day'].drop_duplicates().tolist(),
+    'year' : df['year'].drop_duplicates().tolist(),
     'daytype' : df['daytype'].drop_duplicates().tolist()
 }
 
@@ -106,12 +119,12 @@ for feature, vocab in CATEGORIES.items():
     cat_col = tf.feature_column.categorical_column_with_vocabulary_list(key=feature, vocabulary_list=vocab)
     categorical_columns.append(tf.feature_column.indicator_column(cat_col))
 
-categorical_layer = keras.layers.DenseFeatures(categorical_columns)
+categorical_layer = tf.keras.layers.DenseFeatures(categorical_columns)
 
 if nf.empty:
   preprocessing_layer = categorical_layer
 else:
-  preprocessing_layer = keras.layers.DenseFeatures(categorical_columns+numeric_columns)
+  preprocessing_layer = tf.keras.layers.DenseFeatures(categorical_columns+numeric_columns)
 
 train_data = packed_train_data.shuffle(500)
 test_data = packed_test_data
@@ -121,48 +134,42 @@ test_data = packed_test_data
 # print(categorical_layer(example_batch).numpy()[0])
 # print(preprocessing_layer(example_batch).numpy()[0])
 
-# model = keras.models.load_model('./model_v1')
+model = load_model('./model_v1.0.1')
 
-model = keras.Sequential([
-    preprocessing_layer,
-    keras.layers.Dense(128, activation='relu'),
-    # keras.layers.Dropout(0.5, noise_shape=None, seed=None),
-    keras.layers.Dense(128, activation='relu'),
-    # keras.layers.Dropout(0.5, noise_shape=None, seed=None),
-    keras.layers.Dense(128, activation='relu'),
-    keras.layers.Dense(1, activation=None),
-])
+# model = tf.keras.Sequential([
+#     preprocessing_layer,
+#     tf.keras.layers.Dense(128, activation='relu'),
+#     tf.keras.layers.Dense(128, activation='relu'),
+#     tf.keras.layers.Dense(1),
+# ])
 
-# opt = Adam(lr=1e-3, decay=1e-3 / 200)
-# opt = keras.optimizers.RMSprop(0.001)
-
-# model.compile(
-#     loss=keras.losses.BinaryCrossentropy(from_logits=True),
-#     optimizer='adam',
-#     metrics=['accuracy']
-# )
+opt = Adam(lr=1e-3, decay=1e-3 / 200)
+# opt = tf.keras.optimizers.RMSprop(0.001)
 
 # mean absolute percentage error indicates that we seek to minimize the mean percentage difference between the predicted price and the actual price
 model.compile(
-    # loss=keras.losses.MeanAbsolutePercentageError(),
-    # loss='mse',
+    # loss=tf.keras.losses.MeanAbsolutePercentageError(),
     loss='mse',
-    # optimizer=keras.optimizers.Adam(learning_rate=0.01),
-    optimizer=keras.optimizers.Adadelta(learning_rate=0.001, rho=0.95, epsilon=1e-07, name="Adadelta"),
-    # optimizer=opt,
+    optimizer=opt,
     metrics=['accuracy']
 )
 
 tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
-# show_batch(train_data)
+
+# model.summary()
+show_batch(train_data)
 # print(model.predict(example_batch))
 
-model.fit(train_data, epochs=20)
-save_model(model, '.cta/model_v1.0.2')
+# model.fit(train_data, epochs=20)
+# save_model(model, './model_v1')
 
 # test_loss, test_accuracy = model.evaluate(test_data)
 # print('\n\nTest Loss {}, Test Accuracy {}'.format(test_loss, test_accuracy))
 # print('')
+
+print(model.get_weights())
+
+print(model.summary())
 
 predictions = model.predict(test_data)
 
