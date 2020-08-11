@@ -134,7 +134,7 @@ test_data = packed_test_data
 # print(categorical_layer(example_batch).numpy()[0])
 # print(preprocessing_layer(example_batch).numpy()[0])
 
-model = load_model('./model_v1.0.1')
+model = load_model('./cta/model_v1.0.2')
 
 # model = tf.keras.Sequential([
 #     preprocessing_layer,

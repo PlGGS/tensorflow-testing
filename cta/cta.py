@@ -36,7 +36,7 @@ def show_batch(dataset):
     for key, value in batch.items():
       print("{:20s}: {}".format(key,value.numpy()))
 
-# show_batch(raw_train_data)
+show_batch(raw_train_data)
 
 # Center/normalize numeric data
 def normalize_numeric_data(data, mean, std):
@@ -158,7 +158,7 @@ tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
 # print(model.predict(example_batch))
 
 model.fit(train_data, epochs=20)
-save_model(model, '.cta/model_v1.0.2')
+save_model(model, './cta/model_v1.0.2')
 
 # test_loss, test_accuracy = model.evaluate(test_data)
 # print('\n\nTest Loss {}, Test Accuracy {}'.format(test_loss, test_accuracy))
